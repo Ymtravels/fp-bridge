@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "YM Smiles Bridge",
+  "version": "0.22",
+  "description": "Runs Smiles award searches in a background tab, verifies real seats, and returns clean flight data to flight-processor.",
+  "permissions": ["tabs", "storage"],
+  "host_permissions": ["*://*.smiles.com.ar/*", "*://flight-processor-v2.pages.dev/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "YM Smiles Bridge" },
+  "content_scripts": [
+    {
+      "matches": ["*://*.smiles.com.ar/*"],
+      "js": ["hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["*://*.smiles.com.ar/*"],
+      "js": ["relay.js"],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": ["*://flight-processor-v2.pages.dev/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ]
+}
