@@ -96,6 +96,7 @@ async function runSearch(params, originTabId) {
     const stopHrs = f => { if (!f.stopover) return 0; const d = f.stopover.duration || ''; const h = +((d.match(/(\d+)\s*h/) || [])[1] || 0); const m = +((d.match(/(\d+)\s*min/) || [])[1] || 0); return h + m / 60; };
     const cap = 40;
     let n = 0;
+    let scanGrabbed = false; // TEMP: one business flight's money-field scan, to pin the tax field
     for (const f of flights) {
       if (abortFlag) break;                                      // Stop pressed
       if (!f.uid || !f.fareUid) continue;
@@ -116,6 +117,7 @@ async function runSearch(params, originTabId) {
       // when we look it up just to price it).
       if (/American/i.test(f.airline || '')) f.available = r ? (r.ok ? true : (r.status === 452 ? false : null)) : null;
       if (r && r.ok && r.taxMoney != null) f.taxARS = r.taxMoney;  // ARS boarding tax, for pricing
+      if (r && r.ok && r.taxScan && /business/i.test(f.classType) && !scanGrabbed) { f._taxscan = r.taxScan; scanGrabbed = true; } // TEMP debug
       await sleep(500);
     }
   }

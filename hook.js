@@ -94,18 +94,23 @@
     origFetch(url, { credentials: 'include', headers: headers })
       .then(r => r.text().then(t => ({ status: r.status, ok: r.ok, t: t })))
       .then(o => {
-        let seats = null, gotFl = false, taxMoney = null;
+        let seats = null, gotFl = false, taxMoney = null, taxScan = {};
         if (o.ok) { try {
           const j = JSON.parse(o.t);
           const fl = j.flightList && j.flightList[0];
           if (fl) {
             seats = fl.availableSeats; gotFl = true;
+            const totals = j.totals || {};
             const bt = fl.boardingTax || {};
-            taxMoney = (bt.boardingTaxMoney != null) ? bt.boardingTaxMoney : (bt.money != null ? bt.money : null);
-            if (taxMoney == null && j.totals && j.totals.totalBoardingTax) taxMoney = j.totals.totalBoardingTax.boardingTaxMoney;
+            // Best guess for "tasas e impuestos (dinero)": totals.total.money.
+            taxMoney = (totals.total && totals.total.money != null) ? totals.total.money
+              : (bt.boardingTaxMoney != null ? bt.boardingTaxMoney : (bt.money != null ? bt.money : null));
+            // TEMP: full money-field scan so we can confirm the right one on a business flight.
+            const scan = (obj, path, depth) => { if (!obj || typeof obj !== 'object' || depth > 4) return; for (const k in obj) { const val = obj[k]; if (typeof val === 'number' && /tax|money|boarding|total|fee|amount/i.test(k)) taxScan[path + k] = val; else if (val && typeof val === 'object') scan(val, path + k + '.', depth + 1); } };
+            scan(j, '', 0);
           }
         } catch (e) {} }
-        window.postMessage({ __ymVerifyRes: { id: v.id, ok: gotFl, seats: seats, status: o.status, hadHeaders: !!siteHeaders, taxMoney: taxMoney } }, '*');
+        window.postMessage({ __ymVerifyRes: { id: v.id, ok: gotFl, seats: seats, status: o.status, hadHeaders: !!siteHeaders, taxMoney: taxMoney, taxScan: JSON.stringify(taxScan) } }, '*');
       })
       .catch(err => window.postMessage({ __ymVerifyRes: { id: v.id, ok: false, status: 'neterr' } }, '*'));
   });
