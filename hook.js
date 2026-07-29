@@ -94,14 +94,18 @@
     origFetch(url, { credentials: 'include', headers: headers })
       .then(r => r.text().then(t => ({ status: r.status, ok: r.ok, t: t })))
       .then(o => {
-        let seats = null, gotFl = false, taxScan = {};
+        let seats = null, gotFl = false, taxMoney = null;
         if (o.ok) { try {
           const j = JSON.parse(o.t);
-          const fl = j.flightList && j.flightList[0]; if (fl) { seats = fl.availableSeats; gotFl = true; }
-          const scan = (obj, path, depth) => { if (!obj || typeof obj !== 'object' || depth > 4) return; for (const k in obj) { const val = obj[k]; if (typeof val === 'number' && /tax|money|boarding|total|fee|amount|miles/i.test(k)) taxScan[path + k] = val; else if (val && typeof val === 'object') scan(val, path + k + '.', depth + 1); } };
-          scan(j, '', 0);
+          const fl = j.flightList && j.flightList[0];
+          if (fl) {
+            seats = fl.availableSeats; gotFl = true;
+            const bt = fl.boardingTax || {};
+            taxMoney = (bt.boardingTaxMoney != null) ? bt.boardingTaxMoney : (bt.money != null ? bt.money : null);
+            if (taxMoney == null && j.totals && j.totals.totalBoardingTax) taxMoney = j.totals.totalBoardingTax.boardingTaxMoney;
+          }
         } catch (e) {} }
-        window.postMessage({ __ymVerifyRes: { id: v.id, ok: gotFl, seats: seats, status: o.status, hadHeaders: !!siteHeaders, taxScan: JSON.stringify(taxScan) } }, '*');
+        window.postMessage({ __ymVerifyRes: { id: v.id, ok: gotFl, seats: seats, status: o.status, hadHeaders: !!siteHeaders, taxMoney: taxMoney } }, '*');
       })
       .catch(err => window.postMessage({ __ymVerifyRes: { id: v.id, ok: false, status: 'neterr' } }, '*'));
   });

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YM Smiles Bridge",
-  "version": "0.25",
+  "version": "0.26",
   "description": "Runs Smiles award searches in a background tab, verifies real seats, and returns clean flight data to flight-processor.",
   "permissions": ["tabs", "storage"],
   "host_permissions": ["*://*.smiles.com.ar/*", "*://flight-processor-v2.pages.dev/*"],

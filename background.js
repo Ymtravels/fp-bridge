@@ -79,9 +79,10 @@ async function runSearch(params, originTabId) {
 
   if (!flights.length) { backToApp(); return { ok: true, flights: [], rawCount }; }
 
-  if (params.verify) {
-    // Verify exactly the flights that will be SHOWN — mirror the app's display filters —
-    // so "Verify seats" always checks whatever's in your list, nothing more.
+  if (params.verify || params.price) {
+    // Look up the shown flights via boardingtax. In PRICE mode (unpriced route) we check
+    // EVERY shown flight (any airline) to grab its ARS boarding tax + seats. In verify-only
+    // mode we check American only (AC is trusted). Either way we mirror the display filters.
     const nonstop = !!params.nonstop;
     const econMax = params.econMax || 999999;
     const bizMax = params.bizMax || 999999;
@@ -89,26 +90,25 @@ async function runSearch(params, originTabId) {
     const stopHrs = f => { if (!f.stopover) return 0; const d = f.stopover.duration || ''; const h = +((d.match(/(\d+)\s*h/) || [])[1] || 0); const m = +((d.match(/(\d+)\s*min/) || [])[1] || 0); return h + m / 60; };
     const cap = 40;
     let n = 0;
-    let rawGrabbed = false; // TEMP: capture one raw boardingtax response to find the tax field
     for (const f of flights) {
       if (!f.uid || !f.fareUid) continue;
-      // Air Canada is trusted (rarely has phantom seats) — never spend a check on it.
-      if (!/American/i.test(f.airline || '')) continue;
       if (nonstop && f.stopover) continue;                       // won't be shown
       if (f.stopover && stopHrs(f) > maxStop) continue;          // won't be shown
       const capMi = /business/i.test(f.classType) ? bizMax : econMax;
       if ((f.milesClub || f.miles || 0) > capMi) continue;       // won't be shown
+      // Verify-only mode skips non-American (AC trusted). Price mode checks everyone.
+      if (!params.price && !/American/i.test(f.airline || '')) continue;
       if (n++ >= cap) break;
       let r = await verifyInTab(sTab.id, f, params.adults);
       // A 452 is either a transient rate-limit OR the fare is genuinely gone.
-      // Retry once after a pause: a rate-limit clears -> 200; a truly-gone fare stays 452.
       if (r && r.status === 452) { await sleep(1600); r = await verifyInTab(sTab.id, f, params.adults); }
       else if (r && !r.ok) { await sleep(1200); r = await verifyInTab(sTab.id, f, params.adults); }
       f.confirmedSeats = (r && r.ok) ? r.seats : null;
       f.verifyStatus = r ? (r.status || null) : null;
-      // 200 = real & available; persistent 452 = phantom/gone; anything else = unknown.
-      f.available = r ? (r.ok ? true : (r.status === 452 ? false : null)) : null;
-      if (r && r.ok && r.taxScan && !rawGrabbed) { f._taxraw = r.taxScan; rawGrabbed = true; } // TEMP debug: only a SUCCESSFUL (available) response carries the tax
+      // Availability judgment ONLY for American (AC is trusted — never mark it gone, even
+      // when we look it up just to price it).
+      if (/American/i.test(f.airline || '')) f.available = r ? (r.ok ? true : (r.status === 452 ? false : null)) : null;
+      if (r && r.ok && r.taxMoney != null) f.taxARS = r.taxMoney;  // ARS boarding tax, for pricing
       await sleep(500);
     }
   }

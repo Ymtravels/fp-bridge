@@ -27,8 +27,6 @@ $('go').onclick = () => {
     if (!resp) { $('out').textContent = 'No response from background.'; return; }
     if (!resp.ok) { $('out').textContent = 'Failed: ' + resp.error; return; }
     const ver = chrome.runtime.getManifest().version;
-    const taxf = (resp.flights || []).find(f => f._taxraw);
-    const taxdbg = taxf ? ('\n===== TAX DEBUG (screenshot this) =====\n' + taxf._taxraw + '\n===== END TAX DEBUG =====\n') : '';
-    $('out').textContent = `v${ver} — kept ${resp.flights.length}, raw response had ${resp.rawCount || 0} flights:` + taxdbg + '\n\n' + render(resp.flights);
+    $('out').textContent = `v${ver} — kept ${resp.flights.length}, raw response had ${resp.rawCount || 0} flights:\n\n` + render(resp.flights);
   });
 };
