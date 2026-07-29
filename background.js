@@ -3,6 +3,8 @@
 // tab/session, then closes the tab.
 const waiters = {}; // tabId -> resolver for the search flights
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const openTabs = new Set(); // Smiles search tabs currently open (for Stop)
+let abortFlag = false;      // set by a Stop request; runSearch checks it and bails
 
 // NOTE: we deliberately do NOT modify the User-Agent. Spoofing it made Smiles' bot
 // shield (Akamai) reject the browser — that was breaking searches (and normal browsing)
@@ -11,6 +13,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'search') { runSearch(msg.params, sender.tab && sender.tab.id).then(sendResponse); return true; }
   if (msg.type === 'flights' && sender.tab && waiters[sender.tab.id]) waiters[sender.tab.id](msg);
+  if (msg.type === 'abort') { abortFlag = true; for (const t of openTabs) { chrome.tabs.remove(t).catch(() => {}); } openTabs.clear(); }
 });
 
 function emissionUrl(p) {
@@ -65,15 +68,18 @@ async function runSearch(params, originTabId) {
 
   // Flaky browsers (esp. mobile) sometimes return an empty "no flights" — retry a few
   // times and use the first pass that actually comes back with flights.
+  abortFlag = false; // fresh search
   let flights = [], rawCount = 0, sTab = null;
   for (let attempt = 0; attempt < 4; attempt++) {
+    if (abortFlag) { backToApp(); return { ok: false, aborted: true }; }
     let tab;
     try { tab = await chrome.tabs.create({ url: emissionUrl(params), active: isMobile }); }
     catch (e) { backToApp(); return { ok: false, error: 'Could not open Smiles tab: ' + e.message }; }
+    openTabs.add(tab.id);
     const result = await collectSearch(tab.id);
     rawCount = result.rawCount || 0;
     if (result.flights.length) { flights = result.flights; sTab = tab; break; }
-    chrome.tabs.remove(tab.id).catch(() => {});
+    chrome.tabs.remove(tab.id).catch(() => {}); openTabs.delete(tab.id);
     await sleep(900);
   }
 
@@ -91,6 +97,7 @@ async function runSearch(params, originTabId) {
     const cap = 40;
     let n = 0;
     for (const f of flights) {
+      if (abortFlag) break;                                      // Stop pressed
       if (!f.uid || !f.fareUid) continue;
       if (nonstop && f.stopover) continue;                       // won't be shown
       if (f.stopover && stopHrs(f) > maxStop) continue;          // won't be shown
@@ -114,6 +121,7 @@ async function runSearch(params, originTabId) {
   }
 
   backToApp();
-  if (sTab) chrome.tabs.remove(sTab.id).catch(() => {});
+  if (sTab) { chrome.tabs.remove(sTab.id).catch(() => {}); openTabs.delete(sTab.id); }
+  if (abortFlag) return { ok: false, aborted: true };
   return { ok: true, flights, rawCount };
 }
