@@ -108,7 +108,7 @@ async function runSearch(params, originTabId) {
       f.verifyStatus = r ? (r.status || null) : null;
       // 200 = real & available; persistent 452 = phantom/gone; anything else = unknown.
       f.available = r ? (r.ok ? true : (r.status === 452 ? false : null)) : null;
-      if (r && r.raw && !rawGrabbed) { f._taxraw = r.raw; rawGrabbed = true; } // TEMP debug
+      if (r && r.ok && r.raw && !rawGrabbed) { f._taxraw = r.raw; rawGrabbed = true; } // TEMP debug: only a SUCCESSFUL (available) response carries the tax
       await sleep(500);
     }
   }
