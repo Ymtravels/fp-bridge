@@ -89,6 +89,7 @@ async function runSearch(params, originTabId) {
     const stopHrs = f => { if (!f.stopover) return 0; const d = f.stopover.duration || ''; const h = +((d.match(/(\d+)\s*h/) || [])[1] || 0); const m = +((d.match(/(\d+)\s*min/) || [])[1] || 0); return h + m / 60; };
     const cap = 40;
     let n = 0;
+    let rawGrabbed = false; // TEMP: capture one raw boardingtax response to find the tax field
     for (const f of flights) {
       if (!f.uid || !f.fareUid) continue;
       // Air Canada is trusted (rarely has phantom seats) — never spend a check on it.
@@ -107,6 +108,7 @@ async function runSearch(params, originTabId) {
       f.verifyStatus = r ? (r.status || null) : null;
       // 200 = real & available; persistent 452 = phantom/gone; anything else = unknown.
       f.available = r ? (r.ok ? true : (r.status === 452 ? false : null)) : null;
+      if (r && r.raw && !rawGrabbed) { f._taxraw = r.raw; rawGrabbed = true; } // TEMP debug
       await sleep(500);
     }
   }
